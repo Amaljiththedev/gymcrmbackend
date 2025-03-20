@@ -1,3 +1,4 @@
+from datetime import timezone
 from rest_framework import serializers
 from .models import Member, Attendance, MembershipPlan
 
@@ -37,4 +38,11 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def get_days_present(self, obj):
         return obj.attendances.count()
-
+    
+    def get_membership_status(self, obj):
+        if obj.is_blocked:
+            return "blocked"
+        elif timezone.now() > obj.membership_end:
+            return "expired"
+        else:
+            return "active"

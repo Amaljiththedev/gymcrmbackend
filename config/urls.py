@@ -9,6 +9,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('interfaces.users.urls')),  # Adjust the path if your app is elsewhere.
     path('api/', include('interfaces.members.urls')),
+    path('api/staff/', include('interfaces.staff.urls')),
 ]
 
 if settings.DEBUG:
