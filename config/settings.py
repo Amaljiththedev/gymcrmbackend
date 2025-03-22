@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'interfaces.notifications',
     'interfaces.staff',
+    'interfaces.trainer',
 ]
 
 
