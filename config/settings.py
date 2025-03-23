@@ -46,16 +46,20 @@ INSTALLED_APPS = [
     'corsheaders',           # CORS handling
     'channels',              # Django Channels for WebSockets
     'drf_yasg',              # API documentation
-
+    "django_filters",
+    'django_extensions',        # Django Filter for filtering
     # Custom Django apps (Interface Layer)
     'interfaces.users',
     'interfaces.members',
     'interfaces.finance',    # Ensure no stray text follows!
     'interfaces.attendance',
-    'django_extensions',
+    
     'interfaces.notifications',
     'interfaces.staff',
     'interfaces.trainer',
+    'interfaces.expense',
+    
+    
 ]
 
 

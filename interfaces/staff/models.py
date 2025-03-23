@@ -1,4 +1,6 @@
 from datetime import timedelta
+from django.db import models
+from django.utils import timezone
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -6,12 +8,21 @@ from django.contrib.auth.models import (
     Group,
     Permission
 )
-from django.db import models
-from django.utils import timezone
 
-# ================================
-# Custom Manager for Staff Model
-# ================================
+class StaffRoles(models.TextChoices):
+    REGULAR = 'regular_staff', 'Regular Staff'
+    SUPER = 'super_staff', 'Super Staff'
+
+class DepartmentChoices(models.TextChoices):
+    FRONT_DESK = 'front_desk', 'Front Desk'
+    CLEANING = 'cleaning', 'Cleaning Staff'
+    MAINTENANCE = 'maintenance', 'Maintenance'
+    ACCOUNTING = 'accounting', 'Accounting'
+    SECURITY = 'security', 'Security'
+    SALES = 'sales', 'Sales & Marketing'
+    CUSTOMER_SERVICE = 'customer_service', 'Customer Service'
+
+
 class StaffManager(BaseUserManager):
     def create_staff(
         self,
@@ -25,13 +36,12 @@ class StaffManager(BaseUserManager):
         salary_credited_date,
         photo,
         salary_due_date=None,
-        role='regular_staff',
+        role=StaffRoles.REGULAR,
         password=None
     ):
         if not email:
             raise ValueError("Staff must have an email address")
         email = self.normalize_email(email)
-        # Calculate salary_due_date if not provided
         if salary_due_date is None:
             salary_due_date = salary_credited_date + timedelta(days=30)
         staff = self.model(
@@ -85,25 +95,7 @@ class StaffManager(BaseUserManager):
         staff.save(using=self._db)
         return staff
 
-# ================================
-# Choice Fields
-# ================================
-class StaffRoles(models.TextChoices):
-    REGULAR = 'regular_staff', 'Regular Staff'
-    SUPER = 'super_staff', 'Super Staff'
 
-class DepartmentChoices(models.TextChoices):
-    FRONT_DESK = 'front_desk', 'Front Desk'
-    CLEANING = 'cleaning', 'Cleaning Staff'
-    MAINTENANCE = 'maintenance', 'Maintenance'
-    ACCOUNTING = 'accounting', 'Accounting'
-    SECURITY = 'security', 'Security'
-    SALES = 'sales', 'Sales & Marketing'
-    CUSTOMER_SERVICE = 'customer_service', 'Customer Service'
-
-# ================================
-# Staff Model
-# ================================
 class Staff(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, db_index=True)
     first_name = models.CharField(max_length=50)
@@ -117,7 +109,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     photo = models.ImageField(upload_to='staff_photos/')
     role = models.CharField(max_length=20, choices=StaffRoles.choices, default=StaffRoles.REGULAR, db_index=True)
 
-    # Explicit related_name to avoid reverse accessor conflicts
+    # Explicit related names for groups and permissions
     groups = models.ManyToManyField(Group, related_name="staff_members", blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name="staff_permissions", blank=True)
 
@@ -130,7 +122,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name} ({self.get_role_display()})"
 
     def save(self, *args, **kwargs):
-        # If salary_due_date isn't set, calculate it as 30 days from salary_credited_date
         if not self.salary_due_date:
             self.salary_due_date = self.salary_credited_date + timedelta(days=30)
         super().save(*args, **kwargs)
@@ -141,3 +132,19 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         Returns the next pay day, which is the salary due date.
         """
         return self.salary_due_date
+
+    def pay_salary(self):
+        """
+        Logs this staff's salary as an expense and updates salary dates.
+        """
+        Expense.objects.create(
+            title=f"Staff Salary - {self.first_name} {self.last_name}",
+            amount=self.salary,
+            category="salary",
+            description=f"Monthly salary for {self.first_name} {self.last_name} ({self.department})",
+            expense_source="staff"
+        )
+        self.salary_credited_date = timezone.now().date()
+        self.salary_due_date = self.salary_credited_date + timedelta(days=30)
+        self.save()
+
