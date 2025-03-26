@@ -9,6 +9,20 @@ from rest_framework.response import Response
 from .models import Member, Attendance, MembershipPlan
 from .serializers import MemberSerializer, MembershipPlanSerializer
 from .cache_utils import get_active_members, get_expired_members, get_expiring_members, get_not_fully_paid_members
+from rest_framework import viewsets, status
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from .models import PaymentHistory, Member
+from .serializers import PaymentHistorySerializer
+from .cache_utils import get_member_payment_history
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from weasyprint import HTML
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from .models import Member, PaymentHistory
 
 class MemberViewSet(viewsets.ModelViewSet):
     """
@@ -153,3 +167,88 @@ def expiring_members_view(request):
 def not_fully_paid_members_view(request):
     data = get_not_fully_paid_members()
     return Response(data, status=200)
+
+
+
+
+class PaymentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    A read-only viewset for PaymentHistory records.
+    This endpoint provides:
+      - Standard list and retrieve operations.
+      - A custom action to filter by member.
+    """
+    queryset = PaymentHistory.objects.all().select_related('member', 'membership_plan').order_by('-transaction_date')
+    serializer_class = PaymentHistorySerializer
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='member/(?P<member_id>[^/.]+)')
+    def by_member(self, request, member_id=None):
+        """
+        Returns the payment history for a specific member.
+        Uses the optimized queryset.
+        """
+        # Ensure the member exists
+        get_object_or_404(Member, pk=member_id)
+        queryset = self.get_queryset().filter(member__id=member_id)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def cached_member_payment_history_view(request, member_id):
+    """
+    Retrieve payment history for a member using Redis caching.
+    This endpoint leverages the cache_utils helper for fast retrieval.
+    """
+    # Optionally, you can verify member existence here.
+    get_object_or_404(Member, pk=member_id)
+    data = get_member_payment_history(member_id, timeout=300)
+    return Response(data, status=status.HTTP_200_OK)
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_invoice_detail(request, member_id, invoice_id):
+    """
+    Download a PDF invoice for a specific PaymentHistory record for a given member.
+    For example, for member id 7 and invoice id 3.
+    """
+    # Retrieve the member (404 if not found)
+    member = get_object_or_404(Member, pk=member_id)
+    # Retrieve the specific invoice record that belongs to the member
+    invoice = get_object_or_404(PaymentHistory, pk=invoice_id, member=member)
+
+    # Build context for the invoice template
+    context = {
+        'invoice_number': f"{invoice.id:06}",  # e.g., "000003"
+        'invoice_date': invoice.transaction_date,
+        'company': {
+            'name': "Club7 Crossfit &Gym ",
+            'street': "AE Tower, Bangalore National Highway, Sultan Bathery, Kerala 673592",
+            'city': "Sultan Bathery",
+            'zip_code': "12345",
+            'state': "Kerala",
+            'country': "India",
+            'phone': "+91 92075 56622",
+            'payment_info': "All payments types of payments are accepted.",
+        },
+        'member': member,
+        # We pass the single invoice record as a list for template consistency
+        'payment_history': [invoice],
+        'extra_info': "This invoice corresponds to the selected transaction.",
+    }
+
+    # Render the invoice template into an HTML string.
+    html_string = render_to_string('invoice_template.html', context)
+
+    # Generate the PDF using WeasyPrint.
+    pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+
+    # Return the PDF file as a downloadable response.
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="invoice_{invoice.id}.pdf"'
+    return response

@@ -1,23 +1,18 @@
-from datetime import timezone
 from rest_framework import serializers
-from .models import Member, Attendance, MembershipPlan
+from .models import Member, Attendance, MembershipPlan, PaymentHistory
 
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = ['id', 'attendance_date']
 
-
 class MembershipPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = MembershipPlan
         fields = '__all__'
 
-
 class MemberSerializer(serializers.ModelSerializer):
-    # Read-only nested membership plan details
     membership_plan = MembershipPlanSerializer(read_only=True)
-    # Write-only field to accept a membership plan ID
     membership_plan_id = serializers.PrimaryKeyRelatedField(
         queryset=MembershipPlan.objects.all(),
         write_only=True,
@@ -27,6 +22,7 @@ class MemberSerializer(serializers.ModelSerializer):
     membership_status = serializers.SerializerMethodField(read_only=True)
     membership_end = serializers.ReadOnlyField()
     is_fully_paid = serializers.ReadOnlyField()
+    remaining_balance = serializers.ReadOnlyField()
 
     class Meta:
         model = Member
@@ -34,7 +30,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'last_name', 'email', 'phone', 'address',
             'height', 'weight', 'dob', 'age', 'gender', 'membership_start',
             'membership_plan', 'membership_plan_id', 'membership_end',
-            'is_blocked', 'amount_paid', 'is_fully_paid',
+            'is_blocked', 'amount_paid', 'remaining_balance', 'is_fully_paid',
             'days_present', 'photo', 'membership_status'
         ]
 
@@ -42,5 +38,25 @@ class MemberSerializer(serializers.ModelSerializer):
         return obj.attendances.count()
 
     def get_membership_status(self, obj):
-        # Use the model's property to keep logic in one place
         return obj.membership_status
+
+class PaymentHistorySerializer(serializers.ModelSerializer):
+    member_id = serializers.IntegerField(source='member.id', read_only=True)
+    membership_plan_id = serializers.IntegerField(source='membership_plan.id', read_only=True)
+
+    class Meta:
+        model = PaymentHistory
+        fields = [
+            'id',
+            'member_id',
+            'membership_plan_id',
+            'plan_name_snapshot',
+            'plan_price_snapshot',
+            'plan_duration_snapshot',
+            'membership_start',
+            'membership_end',
+            'transaction_type',
+            'payment_amount',
+            'renewal_count',
+            'transaction_date'
+        ]

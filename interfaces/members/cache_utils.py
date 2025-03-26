@@ -3,7 +3,8 @@ from django.core.cache import cache
 from django.utils import timezone
 from .models import Member
 from django.db.models import F
-
+from django.core.cache import cache
+from .models import PaymentHistory
 
 def get_active_members():
     cache_key = 'active_members'
@@ -50,3 +51,32 @@ def get_not_fully_paid_members():
 
         cache.set(cache_key, result, timeout=None)  # Cached indefinitely until invalidated
     return result
+
+
+
+
+
+def get_member_payment_history(member_id, timeout=300):
+    cache_key = f'payment_history_{member_id}'
+    history = cache.get(cache_key)
+    if history is None:
+        history = list(
+            PaymentHistory.objects.filter(member_id=member_id)
+            .order_by('-transaction_date')
+            .values(
+                'id',
+                'member_id',
+                'membership_plan_id',
+                'plan_name_snapshot',
+                'plan_price_snapshot',
+                'plan_duration_snapshot',
+                'membership_start',
+                'membership_end',
+                'transaction_type',
+                'payment_amount',
+                'renewal_count',
+                'transaction_date'
+            )
+        )
+        cache.set(cache_key, history, timeout)
+    return history

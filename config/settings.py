@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'interfaces',
+    
 
     # Third-party apps
     'rest_framework',        # Django REST Framework
