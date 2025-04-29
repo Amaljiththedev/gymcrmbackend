@@ -23,6 +23,8 @@ from weasyprint import HTML
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .models import Member, PaymentHistory
+from django.db.models import Sum
+
 
 class MemberViewSet(viewsets.ModelViewSet):
     """
@@ -197,58 +199,43 @@ class PaymentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def cached_member_payment_history_view(request, member_id):
-    """
-    Retrieve payment history for a member using Redis caching.
-    This endpoint leverages the cache_utils helper for fast retrieval.
-    """
-    # Optionally, you can verify member existence here.
-    get_object_or_404(Member, pk=member_id)
-    data = get_member_payment_history(member_id, timeout=300)
-    return Response(data, status=status.HTTP_200_OK)
-
-
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
 def download_invoice_detail(request, member_id, invoice_id):
-    """
-    Download a PDF invoice for a specific PaymentHistory record for a given member.
-    For example, for member id 7 and invoice id 3.
-    """
-    # Retrieve the member (404 if not found)
     member = get_object_or_404(Member, pk=member_id)
-    # Retrieve the specific invoice record that belongs to the member
     invoice = get_object_or_404(PaymentHistory, pk=invoice_id, member=member)
 
-    # Build context for the invoice template
+    # Current payment details
+    current_paid_amount = invoice.payment_amount
+    current_membership_plan_start = getattr(invoice, 'membership_start', None)
+    current_cycle_expiry = getattr(invoice, 'membership_end', None)  # <-- use this instead of member.membership_end
+
     context = {
-        'invoice_number': f"{invoice.id:06}",  # e.g., "000003"
+        'invoice_number': f"{invoice.id:06}",
         'invoice_date': invoice.transaction_date,
         'company': {
-            'name': "Club7 Crossfit &Gym ",
+            'name': "Club7 Crossfit & Gym",
             'street': "AE Tower, Bangalore National Highway, Sultan Bathery, Kerala 673592",
             'city': "Sultan Bathery",
             'zip_code': "12345",
             'state': "Kerala",
             'country': "India",
             'phone': "+91 92075 56622",
-            'payment_info': "All payments types of payments are accepted.",
+            'payment_info': "All types of payments are accepted.",
         },
         'member': member,
-        # We pass the single invoice record as a list for template consistency
         'payment_history': [invoice],
+        'current_paid_amount': current_paid_amount,
+        'current_membership_plan_start': current_membership_plan_start,
+        'next_expiry_date': current_cycle_expiry,  # renamed but re-used key for template
         'extra_info': "This invoice corresponds to the selected transaction.",
+        'payment_status': 'PAID'
     }
 
-    # Render the invoice template into an HTML string.
     html_string = render_to_string('invoice_template.html', context)
-
-    # Generate the PDF using WeasyPrint.
     pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
 
-    # Return the PDF file as a downloadable response.
     response = HttpResponse(pdf_file, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="invoice_{invoice.id}.pdf"'
     return response
+
+
+

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Salary Slip #{{ id }}</title>
+
+  <!-- Basic inline styling for PDF -->
+  <style>
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #222;
+      margin: 0;
+      padding: 32px 40px;
+      line-height: 1.4;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .header p {
+      margin: 4px 0 0;
+      font-size: 14px;
+      color: #666;
+    }
+    hr {
+      border: 0;
+      border-top: 1px solid #ddd;
+      margin: 24px 0;
+    }
+    .two-col {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .two-col div {
+      width: 48%;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .label {
+      font-weight: 600;
+      color: #555;
+    }
+    .value {
+      margin-left: 4px;
+    }
+    .amount {
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 12px;
+      color: #2c3e50;
+    }
+    .footer {
+      margin-top: 40px;
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header / Company info -->
+  <div class="header">
+    <h1>Salary Slip</h1>
+    <p>Slip No: {{ id }} &nbsp;|&nbsp; Generated on: {{ created_at }}</p>
+  </div>
+
+  <hr />
+
+  <!-- Trainer details -->
+  <h3>Trainer Information</h3>
+  <div class="two-col">
+    <div><span class="label">Name:</span> <span class="value">{{ trainer }}</span></div>
+    <div><span class="label">Phone:</span> <span class="value">{{ phone_number }}</span></div>
+    <div><span class="label">Email:</span> <span class="value">{{ email }}</span></div>
+  </div>
+
+  <hr />
+
+  <!-- Salary details -->
+  <h3>Salary Details</h3>
+  <div class="two-col">
+    <div>
+      <span class="label">Salary credited date:</span>
+      <span class="value">{{ salary_credited_date }}</span>
+    </div>
+    <div>
+      <span class="label">Salary due date:</span>
+      <span class="value">{{ salary_due_date }}</span>
+    </div>
+  </div>
+
+  <p class="amount">Amount credited: ₹ {{ salary }}</p>
+
+  <hr />
+
+  <div class="footer">
+    <p>Thank you for your contribution and hard work.</p>
+  </div>
+</body>
+</html>

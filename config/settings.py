@@ -27,7 +27,8 @@ SECRET_KEY = 'django-insecure-6i-(rf&gus7j1cac!pe-rb&lzdzr*w73g%al(!c##@q7r$v_de
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]  # Add your production domains when needed
+
 
 
 # Application definition
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'interfaces',
+    'django_celery_beat',  # For periodic tasks
     
 
     # Third-party apps
@@ -59,6 +61,7 @@ INSTALLED_APPS = [
     'interfaces.staff',
     'interfaces.trainer',
     'interfaces.expense',
+    'authentication',
     
     
 ]
@@ -97,19 +100,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'gymcrm',  # Your database name
-        'USER': 'gymuser',  # Your database user
-        'PASSWORD': 'yoursecurepassword',  # Your database password
-        'HOST': 'localhost',  # Use '127.0.0.1' for local development
-        'PORT': '5432',  # Default PostgreSQL port
+        'NAME': 'gymcrm',
+        'USER': 'gymuser',
+        'PASSWORD': 'yoursecurepassword',
+        'HOST': 'postgres_dev',  # Change this from "db" to "postgres_dev"
+        'PORT': '5432',
     }
 }
+
+
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
 # Password validation
@@ -201,3 +204,16 @@ CORS_ALLOW_CREDENTIALS = True
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+REDIS_URL = os.getenv('REDIS_URL', 'redis://redis_dev:6379/0')  # default fallback if env not found
+
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE  # 'UTC' or 'Asia/Kolkata'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True

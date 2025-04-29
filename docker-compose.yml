@@ -1,0 +1,118 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: django_dev
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "1"
+      DATABASE_URL: postgres://gymadmin:gympassword@postgres_dev:5432/gymcrm  # Corrected for the updated DB credentials
+      REDIS_URL: redis://redis_dev:6379/0  # Updated to match the Redis URL you provided
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
+      CORS_ALLOW_ALL_ORIGINS: "True"
+      TIME_ZONE: "UTC"
+      POSTGRES_DB: gymcrm
+      POSTGRES_USER: gymuser
+      POSTGRES_PASSWORD: yoursecurepassword
+      POSTGRES_HOST: postgres_dev  # Corrected the database host
+      POSTGRES_PORT: 5432
+      CELERY_BROKER_URL: redis://redis_dev:6379/0
+      CELERY_RESULT_BACKEND: redis://redis_dev:6379/0
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+      postgres_dev:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    networks:
+      - app_network
+
+  postgres_dev:
+    image: postgres:15
+    container_name: postgres_dev
+    restart: always
+    environment:
+      POSTGRES_DB: gymcrm
+      POSTGRES_USER: gymuser
+      POSTGRES_PASSWORD: yoursecurepassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "gymuser", "-d", "gymcrm"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    networks:
+      - app_network
+
+  redis_dev:
+    image: redis:7
+    container_name: redis_dev
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    networks:
+      - app_network
+
+  celery:
+    build: .
+    container_name: celery_worker
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+      postgres_dev:
+        condition: service_healthy
+    environment:
+      DEBUG: "1"
+      DATABASE_URL: postgres://gymadmin:gympassword@postgres_dev:5432/gymcrm
+      REDIS_URL: redis://redis_dev:6379/0
+      CELERY_BROKER_URL: redis://redis_dev:6379/0  # Ensure correct connection to Redis
+      CELERY_RESULT_BACKEND: redis://redis_dev:6379/0  # Ensure correct backend
+    restart: always
+    networks:
+      - app_network
+
+  celery-beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      redis_dev:
+        condition: service_healthy
+      postgres_dev:
+        condition: service_healthy
+    environment:
+      DEBUG: "1"
+      DATABASE_URL: postgres://gymadmin:gympassword@postgres_dev:5432/gymcrm
+      REDIS_URL: redis://redis_dev:6379/0
+      CELERY_BROKER_URL: redis://redis_dev:6379/0  # Ensure correct connection to Redis
+      CELERY_RESULT_BACKEND: redis://redis_dev:6379/0  # Ensure correct backend
+    restart: always
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+
+networks:
+  app_network:
+    driver: bridge

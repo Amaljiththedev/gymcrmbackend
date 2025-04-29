@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta, date
+from interfaces.members.services.biometric_service import register_member_on_biometric
 
 class MembershipPlan(models.Model):
     name = models.CharField(max_length=100)
@@ -40,17 +41,19 @@ class Member(models.Model):
     is_blocked = models.BooleanField(default=False, help_text="Mark if member is blocked")
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                       help_text="Amount paid for the current membership cycle")
-    # Store remaining_balance as a field updated on save.
     remaining_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00,
                                             editable=False, help_text="Remaining balance for the current cycle")
     renewal_count = models.PositiveIntegerField(default=0, help_text="Renewal cycle count")
     
+    biometric_id = models.IntegerField(unique=True, null=True, blank=True, help_text="Biometric device ID")
     photo = models.ImageField(upload_to='member_photos/', blank=True, null=True)
 
     def save(self, *args, **kwargs):
+        creating = self._state.adding  # Check if it's a new object
+
+        # Membership expiry and balance calculation
         if self.membership_plan:
             self.membership_end = self.membership_start + timedelta(days=self.membership_plan.duration_days)
-            # Update remaining_balance only if membership is active.
             if timezone.now() <= self.membership_end:
                 self.remaining_balance = self.membership_plan.price - self.amount_paid
             else:
@@ -58,10 +61,19 @@ class Member(models.Model):
         else:
             self.remaining_balance = 0
 
+        # Age calculation from DOB
         if self.dob:
             today = date.today()
             self.age = today.year - self.dob.year - ((today.month, today.day) < (self.dob.month, self.dob.day))
+
         super().save(*args, **kwargs)
+
+        # Biometric device registration (only when creating)
+        if creating and not self.biometric_id:
+            biometric_id = register_member_on_biometric(self)
+            if biometric_id:
+                self.biometric_id = biometric_id
+                super().save(update_fields=['biometric_id'])  # Save only biometric_id
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"

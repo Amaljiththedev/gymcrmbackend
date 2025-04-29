@@ -1,17 +1,13 @@
-from datetime import timedelta
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import (
-    AbstractBaseUser,
-    BaseUserManager,
-    PermissionsMixin,
-    Group,
-    Permission
-)
+from datetime import timedelta
+from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import Group, Permission
 
 class StaffRoles(models.TextChoices):
     REGULAR = 'regular_staff', 'Regular Staff'
     SUPER = 'super_staff', 'Super Staff'
+
 
 class DepartmentChoices(models.TextChoices):
     FRONT_DESK = 'front_desk', 'Front Desk'
@@ -24,21 +20,7 @@ class DepartmentChoices(models.TextChoices):
 
 
 class StaffManager(BaseUserManager):
-    def create_staff(
-        self,
-        email,
-        first_name,
-        last_name,
-        phone_number,
-        address,
-        department,
-        salary,
-        salary_credited_date,
-        photo,
-        salary_due_date=None,
-        role=StaffRoles.REGULAR,
-        password=None
-    ):
+    def create_staff(self, email, first_name, last_name, phone_number, address, department, salary, salary_credited_date, photo, salary_due_date=None, role=StaffRoles.REGULAR, password=None):
         if not email:
             raise ValueError("Staff must have an email address")
         email = self.normalize_email(email)
@@ -62,34 +44,8 @@ class StaffManager(BaseUserManager):
         staff.save(using=self._db)
         return staff
 
-    def create_superstaff(
-        self,
-        email,
-        first_name,
-        last_name,
-        phone_number,
-        address,
-        department,
-        salary,
-        salary_credited_date,
-        photo,
-        salary_due_date=None,
-        password=None
-    ):
-        staff = self.create_staff(
-            email,
-            first_name,
-            last_name,
-            phone_number,
-            address,
-            department,
-            salary,
-            salary_credited_date,
-            photo,
-            salary_due_date=salary_due_date,
-            role=StaffRoles.SUPER,
-            password=password
-        )
+    def create_superstaff(self, email, first_name, last_name, phone_number, address, department, salary, salary_credited_date, photo, salary_due_date=None, password=None):
+        staff = self.create_staff(email, first_name, last_name, phone_number, address, department, salary, salary_credited_date, photo, salary_due_date=salary_due_date, role=StaffRoles.SUPER, password=password)
         staff.is_superuser = True
         staff.is_staff = True
         staff.save(using=self._db)
@@ -126,25 +82,16 @@ class Staff(AbstractBaseUser, PermissionsMixin):
             self.salary_due_date = self.salary_credited_date + timedelta(days=30)
         super().save(*args, **kwargs)
 
-    @property
-    def next_pay_day(self):
-        """
-        Returns the next pay day, which is the salary due date.
-        """
-        return self.salary_due_date
 
-    def pay_salary(self):
-        """
-        Logs this staff's salary as an expense and updates salary dates.
-        """
-        Expense.objects.create(
-            title=f"Staff Salary - {self.first_name} {self.last_name}",
-            amount=self.salary,
-            category="salary",
-            description=f"Monthly salary for {self.first_name} {self.last_name} ({self.department})",
-            expense_source="staff"
-        )
-        self.salary_credited_date = timezone.now().date()
-        self.salary_due_date = self.salary_credited_date + timedelta(days=30)
-        self.save()
+class StaffSalaryHistory(models.Model):
+    staff = models.ForeignKey('Staff', on_delete=models.CASCADE)
+    salary = models.DecimalField(max_digits=10, decimal_places=2)
+    salary_credited_date = models.DateField(default=timezone.now)
+    salary_due_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Salary history for {self.staff.first_name} {self.staff.last_name} - ₹{self.salary}"
+
+    class Meta:
+        ordering = ['-created_at']

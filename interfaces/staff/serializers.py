@@ -1,28 +1,27 @@
 from rest_framework import serializers
-from .models import Staff, StaffRoles
+from .models import Staff, StaffRoles, StaffSalaryHistory
 
 class RegularStaffSerializer(serializers.ModelSerializer):
-    role = serializers.CharField(read_only=True)  # Role is read-only
-
-    class Meta:
-        model = Staff
-        fields = [
-            'id', 'email', 'first_name', 'last_name', 'phone_number',
-            'department', 'salary', 'salary_credited_date',  # ✅ Fixed field name
-            'role'
-        ]
-
-
-class SuperStaffSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)  # ✅ Ensure password field is included
     role = serializers.CharField(read_only=True)
 
     class Meta:
         model = Staff
         fields = [
-            'email', 'first_name', 'last_name', 'phone_number',
+            'id', 'email', 'first_name', 'last_name', 'phone_number',
+            'department', 'salary', 'salary_credited_date',
+            'role'
+        ]
+
+class SuperStaffSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
+    role = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = Staff
+        fields = [
+            'id','email', 'first_name', 'last_name', 'phone_number',
             'address', 'department', 'salary', 'salary_credited_date',
-            'salary_due_date', 'photo', 'role', 'password'  # ✅ Include password field
+            'salary_due_date', 'photo', 'role', 'password'
         ]
 
     def create(self, validated_data):
@@ -32,8 +31,31 @@ class SuperStaffSerializer(serializers.ModelSerializer):
 
 
 class StaffDetailSerializer(serializers.ModelSerializer):
-    """Serializer for retrieving a single staff member's details."""
-    
     class Meta:
         model = Staff
         fields = '__all__'
+
+
+class NestedStaffSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Staff
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone_number',
+            'address', 'department', 'salary', 'salary_credited_date',
+            'salary_due_date', 'photo', 'role'
+        ]
+
+
+class StaffSalaryPaymentSerializer(serializers.ModelSerializer):
+    staff = NestedStaffSerializer(read_only=True)
+
+    class Meta:
+        model = StaffSalaryHistory
+        fields = [
+            'id',
+            'staff',
+            'salary',
+            'salary_credited_date',
+            'salary_due_date',
+            'created_at',
+        ]

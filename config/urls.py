@@ -9,9 +9,10 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('interfaces.users.urls')),  # Adjust the path if your app is elsewhere.
     path('api/', include('interfaces.members.urls')),
-    path('api/staff/', include('interfaces.staff.urls')),
-    path('api/trainer/', include('interfaces.trainer.urls')),
-    path("api/expenses/", include("interfaces.expense.urls")),  # Include expense endpoints
+    path('api/', include('interfaces.staff.urls')),
+    path('api/', include('interfaces.trainer.urls')),
+    path("api/", include("interfaces.expense.urls")),  # Include expense endpoints
+    path("api/", include("interfaces.finance.urls")),
 ]
 
 if settings.DEBUG:

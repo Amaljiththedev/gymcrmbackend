@@ -1,6 +1,8 @@
 from django.urls import path
 from .views import (
+    ChangePasswordView,
     ManagerLoginView,
+    ManagerProfileUpdateView,
     StaffLoginView,
     LogoutView,
     UserProfileView,
@@ -17,4 +19,8 @@ urlpatterns = [
     path('csrf/', CSRFTokenView.as_view(), name='csrf_token'),
     path('admin/', AdminOnlyView.as_view(), name='admin_only'),
     path('refresh/', RefreshTokenView.as_view(), name='refresh_token'),
+    path('manager/profile/', ManagerProfileUpdateView.as_view(), name='manager_profile'),
+    path('change-password/', ChangePasswordView.as_view(), name='change_password'),
+    
 ]
+

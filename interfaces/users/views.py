@@ -10,6 +10,7 @@ from rest_framework import status, permissions
 from rest_framework_simplejwt.tokens import RefreshToken
 from django_ratelimit.decorators import ratelimit
 from rest_framework.permissions import IsAuthenticated
+from .serializers import ChangePasswordSerializer, ManagerProfileSerializer
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -115,20 +116,13 @@ class StaffLoginView(APIView):
 # -------------------------------------------------------------------
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    
-    def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get('refresh_token')
-        if refresh_token:
-            try:
-                token = RefreshToken(refresh_token)
-                token.blacklist()
-            except TokenError as e:
-                logger.error(f"Error blacklisting token: {str(e)}")
-        response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
-        response.delete_cookie('access_token', domain="localhost")
-        response.delete_cookie('refresh_token', domain="localhost")
-        return response
 
+    def post(self, request, *args, **kwargs):
+        response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        # Delete cookies without a domain parameter to avoid mismatch issues
+        response.delete_cookie('access_token')
+        response.delete_cookie('refresh_token')
+        return response
 # -------------------------------------------------------------------
 # User Profile View (returns minimal profile information)
 # -------------------------------------------------------------------
@@ -199,3 +193,44 @@ class RefreshTokenView(APIView):
         except TokenError as e:
             logger.error(f"Error refreshing token: {str(e)}")
             return Response({"error": "Invalid refresh token"}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+    
+
+
+class ChangePasswordView(APIView):
+    
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            request.user.set_password(serializer.validated_data['new_password'])
+            request.user.save()
+            return Response({"message": "Password updated successfully."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ────────────────────────────────
+# 👤 Profile Update View (Manager Only)
+# ────────────────────────────────
+class ManagerProfileUpdateView(APIView):
+    
+
+    def get(self, request):
+        user = request.user
+        if user.user_type != 'manager':
+            return Response({"error": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ManagerProfileSerializer(user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        user = request.user
+        if user.user_type != 'manager':
+            return Response({"error": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ManagerProfileSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Profile updated", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

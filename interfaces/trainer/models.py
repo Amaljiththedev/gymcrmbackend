@@ -1,106 +1,89 @@
-from datetime import timedelta
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import (
-    AbstractBaseUser,
-    BaseUserManager,
-    PermissionsMixin,
-    Group,
-    Permission
-)
+from django.core.validators import RegexValidator
+from datetime import timedelta
 
-# =============================================================================
-# Trainer & Trainer Attendance Models
-# =============================================================================
+def get_default_salary_due_date():
+    # Salary is credited monthly; thus, default due date is set to 31 days from now.
+    return timezone.now() + timedelta(days=31)
 
 class Trainer(models.Model):
     """
-    Model representing a trainer with salary details and biometric integration.
+    Trainer model representing a trainer in the system.
     """
-    name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    phone_number = models.CharField(max_length=15)
-    address = models.TextField()
-    salary = models.DecimalField(max_digits=10, decimal_places=2)
-    joined_date = models.DateField(default=timezone.now)
-    photo = models.ImageField(upload_to='trainers/', blank=True, null=True)
-    salary_credited_date = models.DateField(default=timezone.now)
-    salary_due_date = models.DateField(blank=True, null=True)
-    biometric_id = models.CharField(
-        max_length=50, unique=True, blank=True, null=True,
-        help_text="Unique ID from the biometric device"
+    # Basic Information
+    name = models.CharField(max_length=100, verbose_name="Trainer Name")
+    email = models.EmailField(unique=True, verbose_name="Email Address")
+    photo = models.ImageField(upload_to='trainer_photos/', blank=True, null=True, verbose_name="Profile Photo")
+    
+    phone_regex = RegexValidator(
+        regex=r'^\+?1?\d{9,15}$',
+        message="Phone number must be in the format: '+999999999'. Up to 15 digits allowed."
     )
-
-    def save(self, *args, **kwargs):
+    phone_number = models.CharField(
+        validators=[phone_regex],
+        max_length=17,
+        blank=True,
+        null=True,
+        verbose_name="Phone Number"
+    )
+    address = models.CharField(max_length=200, blank=True, null=True, verbose_name="Address")
+    
+    # Financial Information
+    salary = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Salary")
+    salary_credited_date = models.DateTimeField(default=timezone.now, verbose_name="Salary Credited Date")
+    salary_due_date = models.DateTimeField(default=get_default_salary_due_date, verbose_name="Salary Due Date")
+    
+    # Other Information
+    joined_date = models.DateTimeField(auto_now_add=True, verbose_name="Date Joined")
+    photo = models.ImageField(upload_to='trainer_photos/', blank=True, null=True, verbose_name="Profile Photo")
+    is_blocked = models.BooleanField(default=False, help_text="Mark if trainer is blocked", verbose_name="Blocked Status")
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Trainer"
+        verbose_name_plural = "Trainers"
+        indexes = [
+            models.Index(fields=['email']),
+            models.Index(fields=['phone_number']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.email})"
+    
+    def block_trainer(self):
         """
-        Automatically sets salary_due_date if not provided.
+        Blocks the trainer.
         """
-        if not self.salary_due_date:
-            self.salary_due_date = self.salary_credited_date + timedelta(days=30)
-        super().save(*args, **kwargs)
-
+        self.is_blocked = True
+        self.save(update_fields=['is_blocked'])
+    
+    def unblock_trainer(self):
+        """
+        Unblocks the trainer.
+        """
+        self.is_blocked = False
+        self.save(update_fields=['is_blocked'])
+    
     def update_salary_due_date(self):
         """
-        Update salary_due_date for the next month.
+        Updates the salary due date based on the current salary credited date.
         """
-        self.salary_credited_date = timezone.now().date()
-        self.salary_due_date = self.salary_credited_date + timedelta(days=30)
-        self.save()
+        self.salary_due_date = self.salary_credited_date + timedelta(days=31)
+        self.save(update_fields=['salary_due_date'])
 
-    def pay_salary(self):
-        """
-        Log this trainer's salary as an expense and update salary dates.
-        """
-        Expense.objects.create(
-            title=f"Trainer Salary - {self.name}",
-            amount=self.salary,
-            category="salary",
-            description=f"Monthly salary for {self.name} (Trainer)",
-            expense_source="trainer"
-        )
-        self.salary_credited_date = timezone.now().date()
-        self.salary_due_date = self.salary_credited_date + timedelta(days=30)
-        self.save()
+
+
+class TrainerSalaryHistory(models.Model):
+    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE, related_name='salary_history')
+    salary = models.DecimalField(max_digits=10, decimal_places=2)
+    salary_credited_date = models.DateTimeField(default=timezone.now)
+    salary_due_date = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Trainer: {self.name}, Salary: ₹{self.salary}, Next Payment: {self.salary_due_date}"
-
-
-class TrainerAttendance(models.Model):
-    """
-    Model representing trainer attendance.
-    """
-    trainer = models.ForeignKey(
-        Trainer, on_delete=models.CASCADE, related_name="attendances"
-    )
-    date = models.DateField(default=timezone.now)
-    check_in_time = models.DateTimeField(blank=True, null=True)
-    check_out_time = models.DateTimeField(blank=True, null=True)
-    total_hours = models.DecimalField(max_digits=5, decimal_places=2, blank=True, null=True)
-    status = models.CharField(
-        max_length=10,
-        choices=[('Present', 'Present'), ('Absent', 'Absent'), ('Late', 'Late')],
-        default='Absent'
-    )
-
-    def save(self, *args, **kwargs):
-        """
-        Auto-check-out after 12 hours if check-out is missing.
-        Calculates total hours and updates attendance status.
-        """
-        if self.check_in_time and not self.check_out_time:
-            auto_checkout_time = self.check_in_time + timedelta(hours=12)
-            if timezone.now() > auto_checkout_time:
-                self.check_out_time = auto_checkout_time
-
-        if self.check_in_time and self.check_out_time:
-            duration = self.check_out_time - self.check_in_time
-            self.total_hours = round(duration.total_seconds() / 3600, 2)
-
-        if self.check_in_time and not self.check_out_time:
-            self.status = 'Present'
-
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.trainer.name} - {self.date} - {self.status}"
+        return f"Salary history for {self.Trainer.name} - ₹{self.salary}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        
