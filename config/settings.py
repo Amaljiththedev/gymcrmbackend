@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from datetime import timedelta
 import os
 from pathlib import Path
+import dj_database_url
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -100,18 +102,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'gymcrm',
+#         'USER': 'gymuser',
+#         'PASSWORD': 'yoursecurepassword',
+#         'HOST': 'postgres_dev',  # Change this from "db" to "postgres_dev"
+#         'PORT': '5432',
+#     }
+# }
+
+
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'gymcrm',
-        'USER': 'gymuser',
-        'PASSWORD': 'yoursecurepassword',
-        'HOST': 'postgres_dev',  # Change this from "db" to "postgres_dev"
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(default=os.getenv("DATABASE_URL"))
 }
-
-
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 
