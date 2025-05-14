@@ -8,7 +8,10 @@ from .views import (
     download_invoice_detail,
     expired_members_view,
     expiring_members_view,
+    members_to_register,
     not_fully_paid_members_view,
+    mark_biometric_registered,
+    sync_attendance_from_device
 )
 
 router = DefaultRouter()
@@ -25,6 +28,10 @@ urlpatterns = [
     path('not-fully-paid-members/', not_fully_paid_members_view, name='not-fully-paid-members'),
     path('invoice/<int:member_id>/<int:invoice_id>/', download_invoice_detail, name='download-invoice-detail'),
 
+        # Biometric API endpoints
+    path('members-to-register/', members_to_register, name='members-to-register'),
+    path('mark-registered/', mark_biometric_registered, name='mark-registered'),
+    path('sync-biometric-attendance/', sync_attendance_from_device, name='biometric-attendance-sync'),
 
 
 

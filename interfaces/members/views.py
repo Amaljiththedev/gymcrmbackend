@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from django.utils import timezone
 from django.db.models import F, ExpressionWrapper, DurationField, Count
 from django.db.models.functions import Now
@@ -239,3 +239,66 @@ def download_invoice_detail(request, member_id, invoice_id):
 
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def members_to_register(request):
+    """
+    Return members who have biometric_id assigned but not yet registered on the biometric device.
+    """
+    members = Member.objects.filter(biometric_id__isnull=False, biometric_registered=False)
+    serializer = MemberSerializer(members, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_biometric_registered(request):
+    """
+    Mark a member as successfully registered on biometric device.
+    Expected payload: { "biometric_id": <int> }
+    """
+    biometric_id = request.data.get("biometric_id")
+    if biometric_id is None:
+        return Response({"error": "biometric_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        member = Member.objects.get(biometric_id=biometric_id)
+        member.biometric_registered = True
+        member.save(update_fields=["biometric_registered"])
+        return Response({"message": f"Member {member} marked as biometric_registered."}, status=status.HTTP_200_OK)
+    except Member.DoesNotExist:
+        return Response({"error": "Member with given biometric_id not found"}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sync_attendance_from_device(request):
+    """
+    Accept attendance logs in the form: 
+    [
+        { "biometric_id": 4, "timestamp": "2024-05-11T07:00:00" },
+        ...
+    ]
+    """
+    logs = request.data
+    if not isinstance(logs, list):
+        return Response({"error": "Invalid payload format"}, status=status.HTTP_400_BAD_REQUEST)
+
+    created = 0
+    for log in logs:
+        biometric_id = log.get("biometric_id")
+        timestamp = log.get("timestamp")
+
+        if not biometric_id or not timestamp:
+            continue
+
+        try:
+            member = Member.objects.get(biometric_id=biometric_id)
+            if member.can_access_gym:
+                Attendance.objects.get_or_create(
+                    member=member,
+                    attendance_date=timestamp[:10]
+                )
+                created += 1
+        except Member.DoesNotExist:
+            continue
+
+    return Response({"status": "ok", "created": created}, status=status.HTTP_200_OK)
