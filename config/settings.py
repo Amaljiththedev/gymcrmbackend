@@ -103,22 +103,22 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'gymcrm',
-#         'USER': 'gymuser',
-#         'PASSWORD': 'yoursecurepassword',
-#         'HOST': 'postgres_dev',  # Change this from "db" to "postgres_dev"
-#         'PORT': '5432',
-#     }
-# }
-
-
-
 DATABASES = {
-    'default': dj_database_url.config(default=os.getenv("DATABASE_URL"))
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'gymcrm',
+        'USER': 'gymuser',
+        'PASSWORD': 'yoursecurepassword',
+        'HOST': 'postgres_dev',  # Change this from "db" to "postgres_dev"
+        'PORT': '5432',
+    }
 }
+
+
+
+# DATABASES = {
+#     'default': dj_database_url.config(default=os.getenv("DATABASE_URL"))
+# }
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 

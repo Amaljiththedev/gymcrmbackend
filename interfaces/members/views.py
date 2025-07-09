@@ -27,19 +27,11 @@ from django.db.models import Sum
 
 
 class MemberViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet to manage gym members with features such as:
-      - Blocking members
-      - Marking attendance via biometric verification
-      - Standard CRUD operations
-      - Filtering expiring, expired, active, and not fully paid memberships
-    """
+
     serializer_class = MemberSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Optimize by selecting related membership_plan and prefetching attendances,
-        # and annotate attendance_count to avoid extra queries when counting.
         return Member.objects.select_related('membership_plan')\
                              .prefetch_related('attendances')\
                              .annotate(attendance_count=Count('attendances'))
@@ -130,9 +122,6 @@ class MemberViewSet(viewsets.ModelViewSet):
 
 
 class MembershipPlanViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet to manage membership plans.
-    """
     queryset = MembershipPlan.objects.all()
     serializer_class = MembershipPlanSerializer
     permission_classes = [IsAuthenticated]
@@ -174,12 +163,7 @@ def not_fully_paid_members_view(request):
 
 
 class PaymentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    A read-only viewset for PaymentHistory records.
-    This endpoint provides:
-      - Standard list and retrieve operations.
-      - A custom action to filter by member.
-    """
+
     queryset = PaymentHistory.objects.all().select_related('member', 'membership_plan').order_by('-transaction_date')
     serializer_class = PaymentHistorySerializer
     permission_classes = [IsAuthenticated]
@@ -242,9 +226,6 @@ def download_invoice_detail(request, member_id, invoice_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def members_to_register(request):
-    """
-    Return members who have biometric_id assigned but not yet registered on the biometric device.
-    """
     members = Member.objects.filter(biometric_id__isnull=False, biometric_registered=False)
     serializer = MemberSerializer(members, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
@@ -252,10 +233,6 @@ def members_to_register(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def mark_biometric_registered(request):
-    """
-    Mark a member as successfully registered on biometric device.
-    Expected payload: { "biometric_id": <int> }
-    """
     biometric_id = request.data.get("biometric_id")
     if biometric_id is None:
         return Response({"error": "biometric_id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -271,13 +248,6 @@ def mark_biometric_registered(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def sync_attendance_from_device(request):
-    """
-    Accept attendance logs in the form: 
-    [
-        { "biometric_id": 4, "timestamp": "2024-05-11T07:00:00" },
-        ...
-    ]
-    """
     logs = request.data
     if not isinstance(logs, list):
         return Response({"error": "Invalid payload format"}, status=status.HTTP_400_BAD_REQUEST)

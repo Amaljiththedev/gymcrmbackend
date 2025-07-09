@@ -65,3 +65,4 @@ weasyprint==65.0
 webencodings==0.5.1
 zk==0.9.4
 zopfli==0.2.3.post1
+django-celery-beat>=2.5.0
